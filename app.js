@@ -17,7 +17,7 @@ const app = express()
 
 mongoose.set("strictQuery", false);
 
-mongoose.connect('mongodb+srv://Zenfit:j1gJ7JPSCjIWwEe6@cluster0.bjysnrs.mongodb.net/?retryWrites=true&w=majority')
+mongoose.connect('mongodb+srv://eishahaq31:UiAVYcfOObweu8DV@cluster0.tcoc3sg.mongodb.net/?retryWrites=true&w=majority')
 
 
 mongoose.connection.on('error',err => {
@@ -55,7 +55,8 @@ app.use((err,req,res,next) => {
 })
 
 
-const PORT = 8000
+
+const PORT = 3000
 
 
 app.listen(PORT, () => {

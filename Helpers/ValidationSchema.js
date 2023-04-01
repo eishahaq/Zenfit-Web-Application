@@ -1,7 +1,9 @@
 const Joi = require('@hapi/joi')
 
+const emailRegex = /[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/
+
 const authorizationSchema =Joi.object({
-    email: Joi.string().email().lowercase().required(),
+    email: Joi.string().trim().regex(emailRegex).required(),
     password: Joi.string().min(2).required(),
     username:Joi.string(),
     firstname:Joi.string(),
@@ -51,4 +53,5 @@ const authorizationSchema =Joi.object({
 
 module.exports = {
     authorizationSchema,
+    emailRegex
 }

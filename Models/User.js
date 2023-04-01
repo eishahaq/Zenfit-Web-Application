@@ -6,13 +6,14 @@ const UserSchema = new Schema({
   
     role:{
       type: String,
-      enum: ["Customer","Trainer"],
+      enum: ["Customer","Trainer","Admin"],
     }, 
     email: {
         type: String,
         required: true,
         lowercase: true,
-        unique: true
+        unique: true,
+        match:/[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/
     },
     username: {
         type: String,
@@ -33,7 +34,6 @@ const UserSchema = new Schema({
     }, 
     gender: {
         type: String,
-        required: true
     },
     status:{
         type: String,

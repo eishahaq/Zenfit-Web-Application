@@ -5,9 +5,10 @@ const Customer = require('../Models/Customer');
 const Trainer = require('../Models/Trainer');
 const createError = require('http-errors')
 const mongoose = require('mongoose');
-const { authorizationSchema } = require('../Helpers/ValidationSchema')
+const { authorizationSchema,emailRegex } = require('../Helpers/ValidationSchema')
 const bcrypt = require('bcrypt');
 const { signAccessToken, signRefreshToken, verifyRefreshToken, verifyAccessToken } = require('../Helpers/JwtHelper')
+
 
 //GET REQUEST
 
@@ -115,52 +116,57 @@ router.delete('/:id', verifyAccessToken, async (req, res, next) => {
 
 //POST REQUEST SIGNUP
 router.post('/signup', async (req, res, next) => {
-    try {
-        const result = await authorizationSchema.validateAsync(req.body)
-        const doesExist = await User.findOne({ email: result.email })
-        if (doesExist) throw createError.Conflict(`${result.email} has already been registered`)
-        
-        const user = new User({
-            _id: new mongoose.Types.ObjectId,
-            username: result.username,
-            firstname: result.firstname,
-            lastname: result.lastname,
-            gender: result.gender,
-            role:result.role,
-            status:"ACTIVE",
-            password: result.password,
-            email: result.email
-        })
-  
-        const savedUser = await user.save()
-        if (result.role === 'Customer') {
-              const customer = new Customer({
-                  user: savedUser._id,
-                  weight: result.weight,
-                  height: result.height,
-                  dateofbirth: result.dateofbirth
-              })
-              await customer.save();
-             
-          } else if (result.role === 'Trainer') {
-              const trainer = new Trainer({
-                  user: savedUser._id,
-                  trainer_description: result.trainer_description,
-                  trainer_picture: result.trainer_picture,
-                  trainer_specialization: result.trainer_specialization
-              })
-              await trainer.save();
-          }
-  
-        const accessToken = await signAccessToken(savedUser.id)
-        const refreshToken = await signRefreshToken(savedUser.id)
-        res.send({ accessToken, refreshToken })
-    } catch (error) {
-        if (error.isJoi === true) error.status = 422
-        next(error)
-    }
-  })
+  try {
+      const result = await authorizationSchema.validateAsync(req.body);
+      
+      const isUsernameUnique = await User.findOne({ username: result.username });
+      if (isUsernameUnique) throw createError.Conflict(`${result.username} is already taken`);
 
+      const isEmailValid = emailRegex.test(result.email);
+      if (!isEmailValid) throw createError.BadRequest('Invalid email address');
+
+      const doesExist = await User.findOne({ email: result.email });
+      if (doesExist) throw createError.Conflict(`${result.email} has already been registered`);
+      
+      const user = new User({
+          _id: new mongoose.Types.ObjectId,
+          username: result.username,
+          firstname: result.firstname,
+          lastname: result.lastname,
+          gender: result.gender,
+          role:result.role,
+          status:"ACTIVE",
+          password: result.password,
+          email: result.email
+      });
+
+      const savedUser = await user.save();
+      if (result.role === 'Customer') {
+          const customer = new Customer({
+              user: savedUser._id,
+              weight: result.weight,
+              height: result.height,
+              dateofbirth: result.dateofbirth
+          });
+          await customer.save();
+      } else if (result.role === 'Trainer') {
+          const trainer = new Trainer({
+              user: savedUser._id,
+              trainer_description: result.trainer_description,
+              trainer_picture: result.trainer_picture,
+              trainer_specialization: result.trainer_specialization
+          });
+          await trainer.save();
+      }
+
+      const accessToken = await signAccessToken(savedUser.id);
+      const refreshToken = await signRefreshToken(savedUser.id);
+      res.send({ accessToken, refreshToken });
+  } catch (error) {
+      if (error.isJoi === true) error.status = 422;
+      next(error);
+  }
+});
 
   
 
