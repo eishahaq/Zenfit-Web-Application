@@ -40,8 +40,6 @@ router.post('/workout', verifyAccessToken, (req, res, next) => {
     }
   })
 
-
-
 // post the tracking
 router.post('/WorkoutTracking',verifyAccessToken,(req, res, next) => {
 const workoutTrack = new WorkoutTrack({
@@ -69,10 +67,15 @@ workoutTrack.save()
 })
 
 //Add an exercise 
-router.post('/workouts/:workoutId/exercises', verifyAccessToken, async (req, res) => {
+router.post('/:workoutId/exercises', verifyAccessToken, async (req, res) => {
   const workoutId = req.params.workoutId;
 
   try {
+    const userId = req.payload.aud
+    const trainer = Trainer.findById(userId)
+    if (!trainer) {
+      return res.status(403).json({ message: 'Only trainers can add workouts' })
+    }
     const workout = await Workout.findById(workoutId);
     if (!workout) {
       return res.status(404).json({
@@ -124,110 +127,117 @@ router.get('/workouts/search/:search', verifyAccessToken, async (req, res, next)
   });
   
 //delete the workout
-router.delete('/:workout_id',verifyAccessToken, (req, res, next) => {
+router.delete('/:workout_id',verifyAccessToken, async (req, res, next) => {
 
-    const userId = req.payload.aud
-    const trainer = Trainer.findById(userId)
-    console.log(trainer)
-    if (!trainer) {
-      return res.status(403).json({ message: 'Only trainers can delete workouts' })
-    }
-
-    const user = User.findById(req.user.id);
-    if (user.role !== 'Trainer') {
-      return res.status(403).json({
-        message: 'Only trainers can delete the workout'
+  try {
+      const userId = req.payload.aud;
+      const user = await User.findById(userId);
+      if (!user) {
+          return res.status(403).json({ message: 'Invalid user' });
+      }
+      if (user.role !== 'Trainer' && user.role !== 'Admin') {
+          return res.status(403).json({
+              message: 'Only trainers and admins can delete the workout'
+          });
+      }
+      
+      const result = await Workout.findOneAndRemove({ _id: req.params.workout_id });
+      res.status(200).json({
+          message: 'Workout has been deleted',
+          result: result
       });
-    }
-    
-    Workout.remove({ _id: req.params.id })
-        .then(result => {
-            res.status(200).json({
-                message: 'Workout has been deleted',
-                result: result
-            })
-        })
-        .catch(err => {
-            res.status(500).json({
-                error: err
-            })
-        })
-})
+  } catch (error) {
+      res.status(500).json({
+          error: error.message
+      });
+  }
+});
 
 //update the workout
-router.put('/workout/:id',verifyAccessToken, (req, res, next) => {
-
-    const userId = req.payload.aud
-    const trainer = Trainer.findById(userId)
-    console.log(trainer)
-    if (!trainer) {
-      return res.status(403).json({ message: 'Only trainers can update the workouts' })
+router.put('/workout/:id', verifyAccessToken, async (req, res, next) => {
+  try {
+    const userId = req.payload.aud;
+    const user = await User.findById(userId);
+    if (!user) {
+        return res.status(403).json({ message: 'Invalid user' });
+    }
+    if (user.role !== 'Trainer' && user.role !== 'Admin') {
+        return res.status(403).json({
+            message: 'Only trainers and admins can delete the workout'
+        });
     }
 
-    Workout.findByIdAndUpdate(req.params.id, {
-        $set: {
-            name: req.body.name,
-            difficulty_level: req.body.difficulty_level,
-            description: req.body.description,
-            exercise_sets: req.body.exercise_sets,
-            exercises: req.body.exercises,
-            goal: req.body.goal,
-            calories_burned: req.body.calories_burned,
-            duration: req.body.duration,
-            price: req.body.price,
-            payment_successful: req.body.payment_successful,
-            workout_thumbnail: req.body.workout_thumbnail
-        }
-    }, { new: true })
-        .then(result => {
-            res.status(200).json({
-                updated_workout: result
-            })
-        })
-        .catch(err => {
-            console.log(err);
-            res.status(500).json({
-                error: err
-            })
+    const updatedWorkout = await Workout.findByIdAndUpdate(req.params.id, {
+      $set: {
+        workout_name: req.body.workout_name,
+        difficulty_level: req.body.difficulty_level,
+        workout_description: req.body.workout_description,
+        exercises: req.body.exercises,
+        goal: req.body.goal,
+        calories_burned: req.body.calories_burned,
+        duration: req.body.duration,
+        price: req.body.price,
+        workout_price:req.body.workout_price,
+        payment_successful: req.body.payment_successful,
+        workout_thumbnail: req.body.workout_thumbnail
+      }
+    }, { new: true });
 
-        })
-})
+    res.status(200).json({
+      updated_workout: updatedWorkout
+    });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({
+      error: err
+    });
+  }
+});
+
 
 //Update an exercise in a workout
-router.put('/workouts/:workoutId/exercises/:exerciseId',verifyAccessToken, (req, res, next) => {
+router.put('/workouts/:workoutId/exercises/:exerciseId', verifyAccessToken, async (req, res, next) => {
 
-    const userId = req.payload.aud
-    const trainer = Trainer.findById(userId)
-    console.log(trainer)
-    if (!trainer) {
-      return res.status(403).json({ message: 'Only trainers can update the excercises' })
+  try {
+    const userId = req.payload.aud;
+    const user = await User.findById(userId);
+    if (!user) {
+        return res.status(403).json({ message: 'Invalid user' });
     }
-
+    if (user.role !== 'Trainer' && user.role !== 'Admin') {
+        return res.status(403).json({
+            message: 'Only trainers and admins can delete the workout'
+        });
+    }
     const updatedExercise = {
-        name: req.body.name,
-        description: req.body.description,
-        sets: req.body.sets,
-        reps: req.body.reps,
-        weight: req.body.weight,
-        videoUrl: req.body.videoUrl,
-        imageUrl: req.body.imageUrl
+      name: req.body.name,
+      description: req.body.description,
+      sets: req.body.sets,
+      reps: req.body.reps,
+      weight: req.body.weight,
+      videoUrl: req.body.videoUrl,
+      imageUrl: req.body.imageUrl
     };
 
-    Workout.findOneAndUpdate({ _id: req.params.workoutId, "exercises._id": req.params.exerciseId }, {
-        $set: { "exercises.$": updatedExercise }
-    })
-        .then(result => {
-            res.status(200).json({
-                message: 'Exercise updated successfully'
-            })
-        })
-        .catch(err => {
-            console.log(err);
-            res.status(500).json({
-                error: err
-            })
-        })
+    const workout = await Workout.findOneAndUpdate(
+      { _id: req.params.workoutId, "exercises._id": req.params.exerciseId },
+      { $set: { "exercises.$": updatedExercise } },
+      { new: true }
+    );
+
+    if (!workout) {
+      return res.status(404).json({ message: 'Workout or exercise not found' });
+    }
+
+    res.status(200).json({
+      message: 'Exercise updated successfully',
+      workout: workout
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
+
 
 // Get all the workout
 router.get('/workouts',verifyAccessToken, async (req, res, next) => {
