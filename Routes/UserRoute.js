@@ -117,56 +117,79 @@ router.delete('/:id', verifyAccessToken, async (req, res, next) => {
 //POST REQUEST SIGNUP
 router.post('/signup', async (req, res, next) => {
   try {
-      const result = await authorizationSchema.validateAsync(req.body);
-      
-      const isUsernameUnique = await User.findOne({ username: result.username });
-      if (isUsernameUnique) throw createError.Conflict(`${result.username} is already taken`);
+    const result = await authorizationSchema.validateAsync(req.body);
 
-      const isEmailValid = emailRegex.test(result.email);
-      if (!isEmailValid) throw createError.BadRequest('Invalid email address');
+    // Check if user already exists
+    const isUsernameUnique = await User.findOne({ username: result.username });
+    if (isUsernameUnique) throw createError.Conflict(`${result.username} is already taken`);
 
-      const doesExist = await User.findOne({ email: result.email });
-      if (doesExist) throw createError.Conflict(`${result.email} has already been registered`);
-      
-      const user = new User({
-          _id: new mongoose.Types.ObjectId,
-          username: result.username,
-          firstname: result.firstname,
-          lastname: result.lastname,
-          gender: result.gender,
-          role:result.role,
-          status:"ACTIVE",
-          password: result.password,
-          email: result.email
+    // Check email is valid
+    const isEmailValid = emailRegex.test(result.email);
+    if (!isEmailValid) throw createError.BadRequest('Invalid email address');
+
+    // Check if email has already been registered
+    const doesExist = await User.findOne({ email: result.email });
+    if (doesExist) throw createError.Conflict(`${result.email} has already been registered`);
+
+    // Create user object
+    const user = new User({
+      _id: new mongoose.Types.ObjectId(),
+      username: result.username,
+      firstname: result.firstname,
+      lastname: result.lastname,
+      gender: result.gender,
+      role: result.role,
+      status: "ACTIVE",
+      password: result.password,
+      email: result.email
+    });
+
+    // Save user object to database
+    const savedUser = await user.save();
+
+    // Create customer/trainer object if role is specified
+    if (result.role === 'Customer') {
+      const customer = new Customer({
+        user: savedUser._id,
+        weight: result.weight,
+        height: result.height,
+        dateofbirth: result.dateofbirth
       });
+      await customer.save();
+    } else if (result.role === 'Trainer') {
+      const trainer = new Trainer({
+        user: savedUser._id,
+        trainer_description: result.trainer_description,
+        trainer_picture: result.trainer_picture,
+        trainer_specialization: result.trainer_specialization
+      });
+      await trainer.save();
+    }
 
-      const savedUser = await user.save();
-      if (result.role === 'Customer') {
-          const customer = new Customer({
-              user: savedUser._id,
-              weight: result.weight,
-              height: result.height,
-              dateofbirth: result.dateofbirth
-          });
-          await customer.save();
-      } else if (result.role === 'Trainer') {
-          const trainer = new Trainer({
-              user: savedUser._id,
-              trainer_description: result.trainer_description,
-              trainer_picture: result.trainer_picture,
-              trainer_specialization: result.trainer_specialization
-          });
-          await trainer.save();
-      }
+    // Generate access and refresh tokens
+    const accessToken = await signAccessToken(savedUser.id);
+    const refreshToken = await signRefreshToken(savedUser.id);
 
-      const accessToken = await signAccessToken(savedUser.id);
-      const refreshToken = await signRefreshToken(savedUser.id);
-      res.send({ accessToken, refreshToken });
+    // Set cookies for tokens
+    res.cookie('access_token', accessToken, {
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      sameSite: 'none',
+      secure: true // Enable this if using HTTPS
+    });
+    res.cookie('refresh_token', refreshToken, {
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      sameSite: 'none',
+      secure: true // Enable this if using HTTPS
+    });
+
+    // Send response with tokens
+    res.send({ accessToken, refreshToken });
   } catch (error) {
-      if (error.isJoi === true) error.status = 422;
-      next(error);
+    if (error.isJoi === true) error.status = 422;
+    next(error);
   }
 });
+
 
   
 
@@ -216,24 +239,20 @@ router.get('/', verifyAccessToken, async (req, res, next) => {
         })
 })
 
-
-
-
 router.post('/refresh-token', async (req, res, next) => {
-    try {
-        const { refreshToken } = req.body
-        if (!refreshToken) throw createError.BadRequest()
-        const userId = await verifyRefreshToken(refreshToken)
+  try {
+      const { refreshToken } = req.body
+      if (!refreshToken) throw createError.BadRequest()
+      const userId = await verifyRefreshToken(refreshToken)
 
-        const accessToken = await signAccessToken(userId)
-        const refToken = await signRefreshToken(userId)
-        res.send({ accessToken: accessToken, refreshToken: refToken })
+      const accessToken = await signAccessToken(userId)
+      const refToken = await signRefreshToken(userId)
+      res.send({ accessToken: accessToken, refreshToken: refToken })
 
-    } catch (error) {
-        next(error)
+  } catch (error) {
+      next(error)
 
-    }
+  }
 })
-
 
 module.exports = router;
